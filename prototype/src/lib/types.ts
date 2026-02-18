@@ -5,7 +5,7 @@ export type Position = 'front' | 'back';
 export type Team = 'ally' | 'enemy';
 
 // === Skill Types ===
-export type SkillTargetType = 'single' | 'aoe' | 'front_row';
+export type SkillTargetType = 'single' | 'aoe' | 'front_row' | 'back_row';
 export type SkillTargetTeam = 'enemy' | 'ally';
 export type SkillType = 'damage' | 'heal' | 'buff' | 'debuff' | 'damage_heal';
 
@@ -123,6 +123,7 @@ export interface BattleLogEntry {
     heal?: number;
     effects?: BuffType[];
     killed?: boolean;
+    isCritical?: boolean;
   }[];
   timestamp: number;
 }

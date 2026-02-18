@@ -24,13 +24,23 @@ import { loadGameSave, saveGame, resetGame, createPartyUnits } from '../lib/game
 import {
   createBattleState,
   executeRound,
+  executeTurn,
+  calculateTurnOrder,
   applyRogueliteStatBoosts,
   applyBattleStartEffects,
   presentSkillChoices,
+  TurnResult,
 } from '../lib/game/battle-engine';
 import { createEnemyUnits, getStageDefinition } from '../lib/game/enemy-factory';
 
 export type BattleSpeed = '1x' | '2x';
+
+// Animation state for battle visuals
+export interface BattleAnimState {
+  actingUnitId: string | null;
+  hitUnitIds: string[];
+  lastLog: BattleLogEntry | null;
+}
 
 export interface GameStateHook {
   // State
@@ -42,7 +52,8 @@ export interface GameStateHook {
   skillChoices: RogueliteSkill[];
   battleLogs: BattleLogEntry[];
   isBattling: boolean;
-  runResult: { cleared: boolean; stagesCleared: number; rewards: { gold: number; soulStones: number; exp: number } } | null;
+  runResult: { cleared: boolean; stagesCleared: number; rewards: { gold: number; soulStones: number; exp: number }; acquiredSkills?: string[] } | null;
+  battleAnim: BattleAnimState;
 
   // Actions
   setScreen: (screen: GameScreen) => void;
@@ -67,7 +78,14 @@ export function useGameState(): GameStateHook {
   const [battleLogs, setBattleLogs] = useState<BattleLogEntry[]>([]);
   const [isBattling, setIsBattling] = useState(false);
   const [runResult, setRunResult] = useState<GameStateHook['runResult']>(null);
-  const battleIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [battleAnim, setBattleAnim] = useState<BattleAnimState>({
+    actingUnitId: null,
+    hitUnitIds: [],
+    lastLog: null,
+  });
+  const battleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const turnQueueRef = useRef<{ unitId: string; index: number }[]>([]);
+  const roundRef = useRef(1);
 
   // Load save on mount
   useEffect(() => {
@@ -89,6 +107,156 @@ export function useGameState(): GameStateHook {
     });
   }, []);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (battleTimeoutRef.current) {
+        clearTimeout(battleTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // ===== TURN-BY-TURN BATTLE SYSTEM =====
+  const processNextTurn = useCallback((
+    state: BattleState,
+    acquiredSkillObjects: RogueliteSkill[],
+    speed: BattleSpeed,
+  ) => {
+    // If battle is finished, stop
+    if (state.isFinished) return;
+
+    // If turn queue is empty, start a new round
+    if (turnQueueRef.current.length === 0) {
+      const allUnits = [...state.allies, ...state.enemies];
+      const ordered = calculateTurnOrder(allUnits);
+      state.turnOrder = ordered.map((u) => u.id);
+      state.currentTurnIndex = 0;
+      turnQueueRef.current = ordered.map((u, i) => ({ unitId: u.id, index: i }));
+    }
+
+    // Get next unit from queue
+    const next = turnQueueRef.current.shift();
+    if (!next) return;
+
+    const allUnits = [...state.allies, ...state.enemies];
+    const unit = allUnits.find((u) => u.id === next.unitId);
+    if (!unit || !unit.isAlive) {
+      // Skip dead units, process next immediately
+      processNextTurn(state, acquiredSkillObjects, speed);
+      return;
+    }
+
+    // Update currentTurnIndex
+    state.currentTurnIndex = state.turnOrder.indexOf(unit.id);
+
+    // Execute this single turn
+    const result = executeTurn(unit, state, acquiredSkillObjects, state.round);
+
+    if (!result) {
+      // No result (shouldn't happen), move to next
+      processNextTurn(state, acquiredSkillObjects, speed);
+      return;
+    }
+
+    // Add log
+    state.battleLog.push(result.log);
+
+    // Collect target IDs for hit animation
+    const hitIds = result.log.targets?.map((t) => t.id).filter(Boolean) || [];
+
+    // Set animation state: acting unit + hit targets
+    setBattleAnim({
+      actingUnitId: unit.id,
+      hitUnitIds: hitIds as string[],
+      lastLog: result.log,
+    });
+    setBattleLogs((prev) => [...prev, result.log]);
+
+    // Update battle state (triggers re-render with new HP, etc.)
+    setBattleState({ ...state });
+
+    // Check if team is wiped
+    const alliesWiped = state.allies.every((u) => !u.isAlive);
+    const enemiesWiped = state.enemies.every((u) => !u.isAlive);
+
+    if (enemiesWiped) {
+      state.isFinished = true;
+      state.result = 'victory';
+      setBattleState({ ...state });
+      // Clear animation after a moment, then handle victory
+      const delay = speed === '1x' ? 600 : 300;
+      battleTimeoutRef.current = setTimeout(() => {
+        setBattleAnim({ actingUnitId: null, hitUnitIds: [], lastLog: null });
+        setIsBattling(false);
+        handleVictory(state);
+      }, delay);
+      return;
+    }
+
+    if (alliesWiped) {
+      state.isFinished = true;
+      state.result = 'defeat';
+      setBattleState({ ...state });
+      const delay = speed === '1x' ? 600 : 300;
+      battleTimeoutRef.current = setTimeout(() => {
+        setBattleAnim({ actingUnitId: null, hitUnitIds: [], lastLog: null });
+        setIsBattling(false);
+        handleDefeat();
+      }, delay);
+      return;
+    }
+
+    // If turn queue is empty, increment round
+    if (turnQueueRef.current.length === 0) {
+      state.round++;
+      if (state.round > BATTLE_CONFIG.maxRounds) {
+        state.isFinished = true;
+        state.result = 'defeat';
+        setBattleState({ ...state });
+        battleTimeoutRef.current = setTimeout(() => {
+          setBattleAnim({ actingUnitId: null, hitUnitIds: [], lastLog: null });
+          setIsBattling(false);
+          handleDefeat();
+        }, 600);
+        return;
+      }
+    }
+
+    // Schedule next turn with delay
+    const turnDelay = speed === '1x' ? 1000 : 500;
+    battleTimeoutRef.current = setTimeout(() => {
+      // Clear hit animation, keep acting unit briefly
+      setBattleAnim((prev) => ({ ...prev, hitUnitIds: [] }));
+      // Small extra delay then clear acting unit and process next
+      battleTimeoutRef.current = setTimeout(() => {
+        setBattleAnim({ actingUnitId: null, hitUnitIds: [], lastLog: null });
+        processNextTurn(state, acquiredSkillObjects, speed);
+      }, speed === '1x' ? 200 : 100);
+    }, turnDelay);
+  }, []);
+
+  // Start the turn-by-turn loop
+  const startTurnLoop = useCallback((state: BattleState, acquiredSkillIds: string[], speed: BattleSpeed) => {
+    turnQueueRef.current = [];
+    roundRef.current = state.round;
+
+    const acquiredSkillObjects = acquiredSkillIds
+      .map((id) => ROGUELITE_SKILLS.find((s) => s.id === id))
+      .filter(Boolean) as RogueliteSkill[];
+
+    // Small initial delay before first turn
+    battleTimeoutRef.current = setTimeout(() => {
+      processNextTurn(state, acquiredSkillObjects, speed);
+    }, 500);
+  }, [processNextTurn]);
+
+  // Restart loop when speed changes
+  useEffect(() => {
+    if (!isBattling || !battleState || battleState.isFinished) return;
+    // When speed changes mid-battle, the next scheduled timeout will use the old speed.
+    // We don't interrupt - the new speed takes effect on the next turn naturally.
+  }, [battleSpeed]);
+
   // Start a new run
   const startRun = useCallback(() => {
     const partyUnits = createPartyUnits(save);
@@ -103,21 +271,22 @@ export function useGameState(): GameStateHook {
     };
     setRunState(newRun);
     setBattleLogs([]);
+    setBattleAnim({ actingUnitId: null, hitUnitIds: [], lastLog: null });
 
     // Check first stage type
     const stage = getStageDefinition(1);
     if (stage?.type === 'rest') {
       setScreen('rest_event');
     } else if (stage) {
-      // Immediately create battle state for stage 1
       const enemies = createEnemyUnits(stage);
       const partyClone = partyUnits.map((u) => ({ ...u, buffs: [...u.buffs] }));
       const newBattle = createBattleState(partyClone, enemies);
       setBattleState(newBattle);
       setIsBattling(true);
       setScreen('battle');
+      startTurnLoop(newBattle, [], battleSpeed);
     }
-  }, [save]);
+  }, [save, battleSpeed, startTurnLoop]);
 
   // Start battle for current stage
   const startBattle = useCallback(() => {
@@ -129,75 +298,20 @@ export function useGameState(): GameStateHook {
     const enemies = createEnemyUnits(stageDef);
     const partyClone = runState.party.map((u) => ({ ...u, buffs: [...u.buffs] }));
 
-    // Apply roguelite skill stat boosts
     const acquiredSkillObjects = runState.acquiredSkills
       .map((id) => ROGUELITE_SKILLS.find((s) => s.id === id))
       .filter(Boolean) as RogueliteSkill[];
 
-    // Apply battle start effects (heal, buffs)
     applyBattleStartEffects(partyClone, acquiredSkillObjects);
 
     const newBattle = createBattleState(partyClone, enemies);
     setBattleState(newBattle);
     setBattleLogs([]);
+    setBattleAnim({ actingUnitId: null, hitUnitIds: [], lastLog: null });
     setIsBattling(true);
     setScreen('battle');
-  }, [runState]);
-
-  // Auto-battle tick
-  useEffect(() => {
-    if (!isBattling || !battleState || battleState.isFinished) {
-      if (battleIntervalRef.current) {
-        clearInterval(battleIntervalRef.current);
-        battleIntervalRef.current = null;
-      }
-      return;
-    }
-
-    const speed = BATTLE_CONFIG.animationSpeed[battleSpeed];
-    const tickInterval = speed.action + speed.turnDelay;
-
-    battleIntervalRef.current = setInterval(() => {
-      setBattleState((prev) => {
-        if (!prev || prev.isFinished) return prev;
-
-        const stateCopy: BattleState = {
-          ...prev,
-          allies: prev.allies.map((u) => ({ ...u, buffs: [...u.buffs] })),
-          enemies: prev.enemies.map((u) => ({ ...u, buffs: [...u.buffs] })),
-          battleLog: [...prev.battleLog],
-          turnOrder: [...prev.turnOrder],
-        };
-
-        const acquiredSkillObjects = (runState?.acquiredSkills || [])
-          .map((id) => ROGUELITE_SKILLS.find((s) => s.id === id))
-          .filter(Boolean) as RogueliteSkill[];
-
-        const logs = executeRound(stateCopy, acquiredSkillObjects);
-        setBattleLogs((prevLogs) => [...prevLogs, ...logs]);
-
-        if (stateCopy.isFinished) {
-          setIsBattling(false);
-
-          // Handle battle result
-          if (stateCopy.result === 'victory') {
-            handleVictory(stateCopy);
-          } else if (stateCopy.result === 'defeat') {
-            handleDefeat();
-          }
-        }
-
-        return stateCopy;
-      });
-    }, tickInterval);
-
-    return () => {
-      if (battleIntervalRef.current) {
-        clearInterval(battleIntervalRef.current);
-        battleIntervalRef.current = null;
-      }
-    };
-  }, [isBattling, battleState?.isFinished, battleSpeed, runState]);
+    startTurnLoop(newBattle, runState.acquiredSkills, battleSpeed);
+  }, [runState, battleSpeed, startTurnLoop]);
 
   const handleVictory = useCallback(
     (finalBattle: BattleState) => {
@@ -206,14 +320,12 @@ export function useGameState(): GameStateHook {
       const currentStage = runState.currentStage;
       const stageReward = STAGE_REWARDS[currentStage] || { gold: 0, soulStones: 0, exp: 0 };
 
-      // Update run rewards
       const newRewards = {
         gold: runState.rewards.gold + stageReward.gold,
         soulStones: runState.rewards.soulStones + stageReward.soulStones,
         exp: runState.rewards.exp + stageReward.exp,
       };
 
-      // Update party HP state from battle
       const updatedParty = runState.party.map((member) => {
         const battleUnit = finalBattle.allies.find((a) => a.id === member.id);
         if (battleUnit) {
@@ -232,9 +344,7 @@ export function useGameState(): GameStateHook {
         return member;
       });
 
-      // Check if it's the boss stage (stage 10)
       if (currentStage === 10) {
-        // Run cleared!
         const isFirstClear = !save.chapter1Cleared;
         const finalRewards = {
           gold: newRewards.gold + (isFirstClear ? CHAPTER_CLEAR_BONUS.gold : 0),
@@ -242,7 +352,6 @@ export function useGameState(): GameStateHook {
           exp: newRewards.exp,
         };
 
-        // Update save
         updateSave((prev) => ({
           ...prev,
           gold: prev.gold + finalRewards.gold,
@@ -262,13 +371,13 @@ export function useGameState(): GameStateHook {
           cleared: true,
           stagesCleared: 10,
           rewards: finalRewards,
+          acquiredSkills: runState.acquiredSkills,
         });
         setRunState(null);
         setScreen('result');
         return;
       }
 
-      // Not boss stage - prepare skill selection or next stage
       setRunState((prev) => {
         if (!prev) return prev;
         return {
@@ -279,7 +388,6 @@ export function useGameState(): GameStateHook {
         };
       });
 
-      // Show skill selection
       const stageDef = getStageDefinition(currentStage);
       const isElite = stageDef?.type === 'elite';
       const choices = presentSkillChoices(
@@ -319,6 +427,7 @@ export function useGameState(): GameStateHook {
       cleared: false,
       stagesCleared: runState.currentStage - 1,
       rewards: failReward,
+      acquiredSkills: runState.acquiredSkills,
     });
     setRunState(null);
     setScreen('result');
@@ -333,23 +442,18 @@ export function useGameState(): GameStateHook {
         if (!prev) return prev;
 
         const newAcquiredSkills = [...prev.acquiredSkills, skill.id];
-
-        // If skill is a stat boost, apply it to party
         const updatedParty = prev.party.map((u) => ({ ...u }));
         if (skill.effect.type === 'stat_boost') {
           applyRogueliteStatBoosts(updatedParty, [skill]);
         }
 
         const nextStage = prev.currentStage;
-
-        // Check next stage type
         const nextStageDef = getStageDefinition(nextStage);
 
         setTimeout(() => {
           if (nextStageDef?.type === 'rest') {
             setScreen('rest_event');
           } else {
-            // Auto-start next battle
             const enemies = createEnemyUnits(nextStageDef!);
             const partyClone = updatedParty.map((u) => ({ ...u, buffs: [...u.buffs] }));
 
@@ -362,8 +466,10 @@ export function useGameState(): GameStateHook {
             const newBattle = createBattleState(partyClone, enemies);
             setBattleState(newBattle);
             setBattleLogs([]);
+            setBattleAnim({ actingUnitId: null, hitUnitIds: [], lastLog: null });
             setIsBattling(true);
             setScreen('battle');
+            startTurnLoop(newBattle, newAcquiredSkills, battleSpeed);
           }
         }, 300);
 
@@ -376,7 +482,7 @@ export function useGameState(): GameStateHook {
 
       setSkillChoices([]);
     },
-    [runState]
+    [runState, battleSpeed, startTurnLoop]
   );
 
   // Select rest event choice
@@ -406,12 +512,9 @@ export function useGameState(): GameStateHook {
           }
         }
 
-        // Add rest stage rewards
         const stageReward = STAGE_REWARDS[prev.currentStage] || { gold: 0, soulStones: 0, exp: 0 };
-
         const nextStage = prev.currentStage + 1;
 
-        // Move to next stage
         setTimeout(() => {
           const nextStageDef = getStageDefinition(nextStage);
           if (nextStageDef) {
@@ -427,8 +530,10 @@ export function useGameState(): GameStateHook {
             const newBattle = createBattleState(partyClone, enemies);
             setBattleState(newBattle);
             setBattleLogs([]);
+            setBattleAnim({ actingUnitId: null, hitUnitIds: [], lastLog: null });
             setIsBattling(true);
             setScreen('battle');
+            startTurnLoop(newBattle, newAcquiredSkills, battleSpeed);
           }
         }, 300);
 
@@ -445,7 +550,7 @@ export function useGameState(): GameStateHook {
         };
       });
     },
-    [runState]
+    [runState, battleSpeed, startTurnLoop]
   );
 
   const toggleBattleSpeed = useCallback(() => {
@@ -464,7 +569,6 @@ export function useGameState(): GameStateHook {
 
   const performGacha = useCallback(
     (type: 'single' | 'ten') => {
-      // Dynamic import to avoid circular deps
       const { performSinglePull, performTenPull } = require('../lib/game/gacha');
       const saveCopy = JSON.parse(JSON.stringify(save)) as GameSaveData;
       let results;
@@ -483,12 +587,18 @@ export function useGameState(): GameStateHook {
   );
 
   const returnToMain = useCallback(() => {
+    if (battleTimeoutRef.current) {
+      clearTimeout(battleTimeoutRef.current);
+      battleTimeoutRef.current = null;
+    }
+    turnQueueRef.current = [];
     setRunState(null);
     setBattleState(null);
     setIsBattling(false);
     setSkillChoices([]);
     setBattleLogs([]);
     setRunResult(null);
+    setBattleAnim({ actingUnitId: null, hitUnitIds: [], lastLog: null });
     setScreen('main');
   }, []);
 
@@ -508,6 +618,7 @@ export function useGameState(): GameStateHook {
     battleLogs,
     isBattling,
     runResult,
+    battleAnim,
     setScreen,
     startRun,
     startBattle,

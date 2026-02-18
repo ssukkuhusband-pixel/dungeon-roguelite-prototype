@@ -72,9 +72,10 @@ export function selectTargets(
   switch (skill.targetType) {
     case 'single': {
       if (skill.targetLowestHp) {
+        // Assassin/Sniper: target lowest HP regardless of position
         return [alive.sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0]];
       }
-      // Front row priority, then lowest HP ratio
+      // Default: Front row priority, then lowest HP ratio within front row
       const frontRow = alive.filter((t) => t.position === 'front');
       const pool = frontRow.length > 0 ? frontRow : alive;
       return [pool.sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0]];
@@ -84,6 +85,11 @@ export function selectTargets(
     case 'front_row': {
       const front = alive.filter((t) => t.position === 'front');
       return front.length > 0 ? front : alive.filter((t) => t.position === 'back');
+    }
+    case 'back_row': {
+      // Target back row first (mages, archers), fall back to front if none
+      const back = alive.filter((t) => t.position === 'back');
+      return back.length > 0 ? back : alive.filter((t) => t.position === 'front');
     }
     default:
       return [alive[0]];
@@ -96,7 +102,7 @@ export function calculateDamage(
   target: BattleUnit,
   skill: Skill,
   acquiredSkills: RogueliteSkill[]
-): number {
+): { damage: number; isCritical: boolean } {
   let atk = attacker.atk;
   // Apply ATK buffs
   const atkBuffs = attacker.buffs.filter((b) => b.type === 'atk_up');
@@ -116,6 +122,12 @@ export function calculateDamage(
   defDebuffs.forEach((b) => (def = Math.floor(def * (1 - b.value))));
 
   let baseDamage = atk * skill.multiplier;
+
+  // Critical hit: 10% chance, 1.5x damage
+  const isCritical = Math.random() < 0.1;
+  if (isCritical) {
+    baseDamage *= 1.5;
+  }
 
   // Ultimate damage bonus from roguelite skills
   if (skill.isUltimate) {
@@ -144,7 +156,7 @@ export function calculateDamage(
     }
   }
 
-  return Math.max(1, finalDamage);
+  return { damage: Math.max(1, finalDamage), isCritical };
 }
 
 // ===== HEAL CALCULATION =====
@@ -351,9 +363,10 @@ export function executeTurn(
     };
 
     if (skill.type === 'damage' || skill.type === 'damage_heal') {
-      const damage = calculateDamage(unit, target, skill, acquiredSkills);
+      const { damage, isCritical } = calculateDamage(unit, target, skill, acquiredSkills);
       target.hp = Math.max(0, target.hp - damage);
       targetResult.damage = damage;
+      if (isCritical) targetResult.isCritical = true;
 
       // Charge target's ultimate gauge on hit
       target.ultimateGauge = Math.min(

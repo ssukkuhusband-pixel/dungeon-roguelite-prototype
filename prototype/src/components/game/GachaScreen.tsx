@@ -28,165 +28,107 @@ export default function GachaScreen({ save, onPull, onBack }: GachaScreenProps) 
     }, 800);
   };
 
-  const handleClose = () => {
-    setResults(null);
-  };
-
   return (
     <div
       className="h-full flex flex-col relative"
-      style={{
-        background: `linear-gradient(to bottom, #0F0A1A, #2D1B4E 50%, #1A1A2E)`,
-      }}
+      style={{ background: `linear-gradient(to bottom, #0F0A1A, #2D1B4E 50%, #1A1A2E)` }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-[#0D0D1A]/80">
-        <button
-          onClick={onBack}
-          className="text-sm px-3 py-1 rounded border"
-          style={{ borderColor: COLORS.primary, color: COLORS.primary }}
-        >
+      <div className="flex items-center justify-between px-4 py-2 bg-[#0D0D1A]/80">
+        <button onClick={onBack} className="text-sm px-3 py-1 rounded border" style={{ borderColor: COLORS.primary, color: COLORS.primary }}>
           ← 뒤로
         </button>
-        <h2 className="text-base font-bold" style={{ color: COLORS.primary }}>
-          ✨ 영웅 소환
-        </h2>
-        <span className="text-sm" style={{ color: '#9C27B0' }}>
-          💎 {save.soulStones.toLocaleString()}
-        </span>
+        <h2 className="text-base font-bold" style={{ color: COLORS.primary }}>✨ 영웅 소환</h2>
+        <span className="text-sm" style={{ color: '#9C27B0' }}>💎 {save.soulStones.toLocaleString()}</span>
       </div>
 
-      {/* Main area */}
-      <div className="flex-1 flex flex-col items-center justify-center">
+      {/* Main - horizontal layout */}
+      <div className="flex-1 flex items-center justify-center gap-8">
         {/* Summon visual */}
-        <div className="relative mb-8">
-          <div
-            className={`text-8xl transition-all duration-500 ${
-              isAnimating ? 'animate-spin scale-125' : ''
-            }`}
-          >
-            🌟
-          </div>
+        <div className="relative">
+          <div className={`text-6xl transition-all duration-500 ${isAnimating ? 'animate-spin scale-125' : ''}`}>🌟</div>
           {isAnimating && (
-            <div
-              className="absolute -inset-16 rounded-full animate-ping opacity-30"
-              style={{
-                background: `radial-gradient(circle, ${COLORS.primary}60, transparent)`,
-              }}
-            />
+            <div className="absolute -inset-12 rounded-full animate-ping opacity-30"
+              style={{ background: `radial-gradient(circle, ${COLORS.primary}60, transparent)` }} />
           )}
         </div>
 
-        {/* Rate info */}
-        <div
-          className="px-4 py-2 rounded-lg border mb-6 text-center"
-          style={{
-            borderColor: '#444',
-            backgroundColor: 'rgba(22,33,62,0.8)',
-          }}
-        >
-          <p className="text-xs" style={{ color: COLORS.textSecondary }}>
-            ★5: 2% | ★4: 8% | ★3: 20% | ★2: 30% | ★1: 40%
-          </p>
-          <p className="text-[10px] mt-1" style={{ color: COLORS.primary }}>
-            10연차 시 ★3 이상 1명 보장
-          </p>
-        </div>
-
-        {/* Pull buttons */}
-        <div className="flex gap-4">
-          <button
-            onClick={() => handlePull('single')}
-            disabled={!canSinglePull || isAnimating}
-            className="px-6 py-3 rounded-lg font-bold border-2 transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:hover:scale-100"
-            style={{
-              borderColor: COLORS.primary,
-              backgroundColor: canSinglePull ? 'rgba(200,168,78,0.2)' : 'rgba(22,33,62,0.5)',
-              color: COLORS.textPrimary,
-            }}
-          >
-            <p className="text-sm">1회 소환</p>
-            <p className="text-xs" style={{ color: '#9C27B0' }}>
-              💎 {GACHA_CONFIG.singleCost}
+        {/* Right side: rates + buttons */}
+        <div className="flex flex-col items-center gap-3">
+          <div className="px-4 py-2 rounded-lg border text-center" style={{ borderColor: '#444', backgroundColor: 'rgba(22,33,62,0.8)' }}>
+            <p className="text-[10px]" style={{ color: COLORS.textSecondary }}>
+              ★5: 2% | ★4: 8% | ★3: 20% | ★2: 30% | ★1: 40%
             </p>
-          </button>
+            <p className="text-[9px] mt-0.5" style={{ color: COLORS.primary }}>10연차 시 ★3 이상 1명 보장</p>
+          </div>
 
-          <button
-            onClick={() => handlePull('ten')}
-            disabled={!canTenPull || isAnimating}
-            className="px-6 py-3 rounded-lg font-bold border-2 transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:hover:scale-100"
-            style={{
-              borderColor: COLORS.accent,
-              backgroundColor: canTenPull ? COLORS.accent : 'rgba(22,33,62,0.5)',
-              color: '#fff',
-              boxShadow: canTenPull ? `0 0 20px ${COLORS.accent}40` : undefined,
-            }}
-          >
-            <p className="text-sm">10연차</p>
-            <p className="text-xs opacity-80">
-              💎 {GACHA_CONFIG.tenPullCost} (10% 할인)
-            </p>
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => handlePull('single')}
+              disabled={!canSinglePull || isAnimating}
+              className="px-5 py-2 rounded-lg font-bold border-2 transition-all hover:scale-105 active:scale-95 disabled:opacity-40"
+              style={{
+                borderColor: COLORS.primary,
+                backgroundColor: canSinglePull ? 'rgba(200,168,78,0.2)' : 'rgba(22,33,62,0.5)',
+                color: COLORS.textPrimary,
+              }}
+            >
+              <p className="text-sm">1회 소환</p>
+              <p className="text-[10px]" style={{ color: '#9C27B0' }}>💎 {GACHA_CONFIG.singleCost}</p>
+            </button>
+            <button
+              onClick={() => handlePull('ten')}
+              disabled={!canTenPull || isAnimating}
+              className="px-5 py-2 rounded-lg font-bold border-2 transition-all hover:scale-105 active:scale-95 disabled:opacity-40"
+              style={{
+                borderColor: COLORS.accent,
+                backgroundColor: canTenPull ? COLORS.accent : 'rgba(22,33,62,0.5)',
+                color: '#fff',
+                boxShadow: canTenPull ? `0 0 20px ${COLORS.accent}40` : undefined,
+              }}
+            >
+              <p className="text-sm">10연차</p>
+              <p className="text-[10px] opacity-80">💎 {GACHA_CONFIG.tenPullCost}</p>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Results overlay */}
       {results && (
-        <div
-          className="absolute inset-0 flex flex-col items-center justify-center z-50"
-          style={{ backgroundColor: 'rgba(13,13,26,0.95)' }}
-        >
-          <h3 className="text-lg font-bold mb-4" style={{ color: COLORS.primary }}>
-            소환 결과
-          </h3>
-
-          <div className="flex flex-wrap gap-3 justify-center px-4 max-w-lg">
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-50" style={{ backgroundColor: 'rgba(13,13,26,0.95)' }}>
+          <h3 className="text-lg font-bold mb-3" style={{ color: COLORS.primary }}>소환 결과</h3>
+          <div className="flex flex-wrap gap-2 justify-center px-4 max-w-2xl">
             {results.map((result, i) => {
               const starColor = COLORS.starColors[result.stars] || '#9E9E9E';
               return (
                 <div
                   key={i}
-                  className={`w-24 p-2 rounded-lg border-2 flex flex-col items-center ${
-                    result.isNew ? 'animate-bounce' : ''
-                  }`}
+                  className={`w-20 p-1.5 rounded-lg border-2 flex flex-col items-center ${result.isNew ? 'animate-bounce' : ''}`}
                   style={{
-                    borderColor: starColor,
-                    backgroundColor: 'rgba(22,33,62,0.9)',
+                    borderColor: starColor, backgroundColor: 'rgba(22,33,62,0.9)',
                     boxShadow: result.stars >= 4 ? `0 0 15px ${starColor}40` : undefined,
-                    animationDelay: `${i * 100}ms`,
-                    animationDuration: '0.5s',
+                    animationDelay: `${i * 100}ms`, animationDuration: '0.5s',
                   }}
                 >
                   <div className="flex gap-0.5">
                     {Array.from({ length: result.stars }).map((_, j) => (
-                      <span key={j} className="text-[8px]" style={{ color: starColor }}>★</span>
+                      <span key={j} className="text-[7px]" style={{ color: starColor }}>★</span>
                     ))}
                   </div>
-                  <div className="my-1">
-                    <CharacterAvatar definitionId={result.heroId} emoji={result.emoji} size="lg" />
-                  </div>
-                  <p className="text-[10px] font-bold" style={{ color: COLORS.textPrimary }}>
-                    {result.nameKo}
-                  </p>
+                  <CharacterAvatar definitionId={result.heroId} emoji={result.emoji} size="md" />
+                  <p className="text-[9px] font-bold" style={{ color: COLORS.textPrimary }}>{result.nameKo}</p>
                   {result.isNew ? (
-                    <span className="text-[9px] px-1 rounded" style={{ backgroundColor: COLORS.accent, color: '#fff' }}>
-                      NEW!
-                    </span>
+                    <span className="text-[8px] px-1 rounded" style={{ backgroundColor: COLORS.accent, color: '#fff' }}>NEW!</span>
                   ) : (
-                    <span className="text-[9px]" style={{ color: COLORS.textSecondary }}>
-                      파편 +{result.fragments}
-                    </span>
+                    <span className="text-[8px]" style={{ color: COLORS.textSecondary }}>파편 +{result.fragments}</span>
                   )}
                 </div>
               );
             })}
           </div>
-
-          <button
-            onClick={handleClose}
-            className="mt-6 px-6 py-2 rounded-lg border font-bold"
-            style={{ borderColor: COLORS.primary, color: COLORS.primary }}
-          >
+          <button onClick={() => setResults(null)} className="mt-4 px-5 py-1.5 rounded-lg border font-bold"
+            style={{ borderColor: COLORS.primary, color: COLORS.primary }}>
             확인
           </button>
         </div>

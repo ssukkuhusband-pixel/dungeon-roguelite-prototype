@@ -67,3 +67,95 @@ body {
 .animate-shake {
   animation: shake 0.3s ease-in-out;
 }
+
+/* === Battle Animations === */
+
+/* Attack animation: ally charges right toward enemy */
+@keyframes attackRight {
+  0% { transform: translateX(0); }
+  30% { transform: translateX(18px) scale(1.1); }
+  60% { transform: translateX(12px); }
+  100% { transform: translateX(0); }
+}
+
+/* Attack animation: enemy charges left toward ally */
+@keyframes attackLeft {
+  0% { transform: translateX(0); }
+  30% { transform: translateX(-18px) scale(1.1); }
+  60% { transform: translateX(-12px); }
+  100% { transform: translateX(0); }
+}
+
+/* Hit shake - unit gets hit */
+@keyframes hitShake {
+  0% { transform: translateX(0); }
+  15% { transform: translateX(-5px) rotate(-2deg); }
+  30% { transform: translateX(5px) rotate(2deg); }
+  45% { transform: translateX(-4px); }
+  60% { transform: translateX(3px); }
+  75% { transform: translateX(-2px); }
+  100% { transform: translateX(0); }
+}
+
+/* Hit flash - red overlay */
+@keyframes hitFlash {
+  0% { opacity: 0.6; }
+  50% { opacity: 0.3; }
+  100% { opacity: 0; }
+}
+
+/* Damage number popup */
+@keyframes damagePopup {
+  0% { opacity: 1; transform: translateX(-50%) translateY(0) scale(0.8); }
+  30% { opacity: 1; transform: translateX(-50%) translateY(-12px) scale(1.2); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-24px) scale(0.9); }
+}
+
+.animate-attack-right {
+  animation: attackRight 0.4s ease-out;
+}
+
+.animate-attack-left {
+  animation: attackLeft 0.4s ease-out;
+}
+
+.animate-hit-shake {
+  animation: hitShake 0.4s ease-out;
+}
+
+.animate-hit-flash {
+  animation: hitFlash 0.4s ease-out forwards;
+}
+
+.animate-damage-popup {
+  animation: damagePopup 0.8s ease-out forwards;
+}
+
+/* Death animation - dramatic fade and shrink */
+@keyframes unitDeath {
+  0% { opacity: 1; transform: scale(1); filter: brightness(1); }
+  20% { opacity: 1; transform: scale(1.05); filter: brightness(2) saturate(0); }
+  100% { opacity: 0.25; transform: scale(0.9) translateY(4px); filter: brightness(0.5) saturate(0); }
+}
+
+.animate-unit-death {
+  animation: unitDeath 0.6s ease-out forwards;
+}
+
+/* Screen shake - heavier version for big hits */
+@keyframes screenShake {
+  0% { transform: translate(0, 0); }
+  10% { transform: translate(-4px, -2px); }
+  20% { transform: translate(4px, 2px); }
+  30% { transform: translate(-3px, 1px); }
+  40% { transform: translate(3px, -1px); }
+  50% { transform: translate(-2px, 2px); }
+  60% { transform: translate(2px, -2px); }
+  70% { transform: translate(-1px, 1px); }
+  80% { transform: translate(1px, -1px); }
+  100% { transform: translate(0, 0); }
+}
+
+.animate-screen-shake {
+  animation: screenShake 0.4s ease-out;
+}

@@ -17,6 +17,13 @@ export const metadata: Metadata = {
   description: "영웅을 수집하고 편성하여, 횡스크롤 턴제 자동전투로 던전을 공략하며 로그라이트 스킬 빌드를 완성해나가는 수집형 RPG",
 };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
