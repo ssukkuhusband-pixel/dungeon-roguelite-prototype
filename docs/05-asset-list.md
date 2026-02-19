@@ -2,7 +2,7 @@
 
 ## 생성 환경
 - 모델: gemini-2.5-flash-image
-- API Key 상태: 확인됨 (***REMOVED***)
+- API Key 상태: 확인됨 (키 제거됨 - 보안상 문서에 포함하지 않음)
 
 ## 생성된 에셋
 
