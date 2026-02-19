@@ -2,17 +2,19 @@
 
 사용자가 게임 아이디어를 (모호하고 굵직하게) 제시하면, 7명의 전문 에이전트가 협력하여 동작하는 프로토타입을 만들어낸다.
 
+**프로젝트 구조 원칙**: 각 게임 프로토타입은 `[게임제목]/` 폴더 아래에 독립적으로 생성한다. 아래 모든 경로는 `[게임제목]/` 기준 상대 경로이다.
+
 ## 에이전트 팀 구성
 
 | # | 에이전트 | 역할 | 출력물 |
 |---|---------|------|--------|
-| 1 | **총괄 기획자** (Creative Director) | 큰 그림, 장르/컨셉/톤 결정, 스코프 제한 | `docs/01-concept.md` |
-| 2 | **코어 게임 디자이너** (Core Designer) | 핵심 게임 루프, 전투/조작 설계 | `docs/02-core-design.md` |
-| 3 | **메타 게임 디자이너** (Meta Designer) | 성장, 보상, 아웃게임 시스템 | `docs/03-meta-design.md` |
-| 4 | **아트 디렉터** (Art Director) | 비주얼 스타일, UI/UX 톤앤매너 | `docs/04-art-direction.md` |
-| 5 | **이미지 제작자** (Asset Creator) | 나노바나나(Gemini) API로 에셋 생성 | `prototype/public/assets/` |
-| 6 | **개발자** (Developer) | 실제 프로토타입 구현 | `prototype/` |
-| 7 | **QA** (Quality Assurance) | 빌드/동작 검증, 버그 수정 | `docs/07-qa-report.md` |
+| 1 | **총괄 기획자** (Creative Director) | 큰 그림, 장르/컨셉/톤 결정, 스코프 제한 | `[게임제목]/docs/01-concept.md` |
+| 2 | **코어 게임 디자이너** (Core Designer) | 핵심 게임 루프, 전투/조작 설계 | `[게임제목]/docs/02-core-design.md` |
+| 3 | **메타 게임 디자이너** (Meta Designer) | 성장, 보상, 아웃게임 시스템 | `[게임제목]/docs/03-meta-design.md` |
+| 4 | **아트 디렉터** (Art Director) | 비주얼 스타일, UI/UX 톤앤매너 | `[게임제목]/docs/04-art-direction.md` |
+| 5 | **이미지 제작자** (Asset Creator) | 나노바나나(Gemini) API로 에셋 생성 | `[게임제목]/prototype/public/assets/` |
+| 6 | **개발자** (Developer) | 실제 프로토타입 구현 | `[게임제목]/prototype/` |
+| 7 | **QA** (Quality Assurance) | 빌드/동작 검증, 버그 수정 | `[게임제목]/docs/07-qa-report.md` |
 
 ---
 
@@ -585,10 +587,12 @@ QA에서 문제를 발견했을 때의 대응 기준:
 사용자가 아이디어를 제시하면:
 
 1. "아이디어를 접수했습니다. 게임 프로토타입 파이프라인을 시작합니다." 안내
-2. Phase 1 → Phase 2 → Phase 3 순서로 진행
-3. 각 에이전트 시작 시 `===== [에이전트명] 작업 시작 =====` 으로 구분
-4. 각 Phase 완료 시 핵심 요약을 사용자에게 보여준다
-5. 결정 포인트에서만 사용자에게 질문한다
+2. **게임 제목을 결정하고 `[게임제목]/` 폴더를 생성한다** (영문 케밥 케이스, 예: `dungeon-roguelite-rpg/`)
+3. 해당 폴더 아래에 `docs/`와 `prototype/`을 생성한다
+4. Phase 1 → Phase 2 → Phase 3 순서로 진행
+5. 각 에이전트 시작 시 `===== [에이전트명] 작업 시작 =====` 으로 구분
+6. 각 Phase 완료 시 핵심 요약을 사용자에게 보여준다
+7. 결정 포인트에서만 사용자에게 질문한다
 
 ### 나노바나나 API Key
 - 사용자가 Gemini API Key를 제공하면 에셋 생성에 활용한다
@@ -596,36 +600,43 @@ QA에서 문제를 발견했을 때의 대응 기준:
 - API Key가 없어도 프로토타입은 완성된다
 
 ### 최종 결과물 구조
+각 게임 프로토타입은 `[게임제목]/` 폴더에 독립적으로 생성된다.
+
 ```
 IdeaPrototype/
-├── CLAUDE.md                    # 이 파일 (에이전트 지침)
-├── docs/
-│   ├── 01-concept.md            # 총괄 기획 - 컨셉 문서
-│   ├── 02-core-design.md        # 코어 게임 디자인
-│   ├── 03-meta-design.md        # 메타 게임 디자인
-│   ├── 04-art-direction.md      # 아트 디렉션
-│   ├── 05-asset-list.md         # 에셋 목록
-│   ├── 06-dev-notes.md          # 개발 구현 노트
-│   └── 07-qa-report.md          # QA 리포트
-└── prototype/                   # 게임 프로토타입 프로젝트
-    ├── package.json
-    ├── public/
-    │   └── assets/              # 나노바나나 생성 에셋
-    │       ├── characters/
-    │       ├── ui/
-    │       ├── backgrounds/
-    │       ├── effects/
-    │       └── items/
-    └── src/
-        ├── app/                 # Next.js App Router
-        ├── components/          # UI 컴포넌트
-        │   ├── game/            # 게임 전용 컴포넌트
-        │   └── ui/              # 공통 UI 컴포넌트
-        ├── lib/
-        │   ├── game/            # 게임 로직 모듈
-        │   ├── constants.ts     # 상수/설정값
-        │   └── types.ts         # 타입 정의
-        └── hooks/               # 커스텀 훅
+├── CLAUDE.md                           # 이 파일 (에이전트 지침)
+├── [게임제목]/                          # 게임별 폴더 (예: dungeon-roguelite-rpg/)
+│   ├── docs/
+│   │   ├── 01-concept.md               # 총괄 기획 - 컨셉 문서
+│   │   ├── 02-core-design.md           # 코어 게임 디자인
+│   │   ├── 03-meta-design.md           # 메타 게임 디자인
+│   │   ├── 04-art-direction.md         # 아트 디렉션
+│   │   ├── 05-asset-list.md            # 에셋 목록
+│   │   ├── 06-dev-notes.md             # 개발 구현 노트
+│   │   └── 07-qa-report.md             # QA 리포트
+│   └── prototype/                      # 게임 프로토타입 프로젝트
+│       ├── package.json
+│       ├── public/
+│       │   └── assets/                 # 나노바나나 생성 에셋
+│       │       ├── characters/
+│       │       ├── ui/
+│       │       ├── backgrounds/
+│       │       ├── effects/
+│       │       └── items/
+│       └── src/
+│           ├── app/                    # Next.js App Router
+│           ├── components/             # UI 컴포넌트
+│           │   ├── game/               # 게임 전용 컴포넌트
+│           │   └── ui/                 # 공통 UI 컴포넌트
+│           ├── lib/
+│           │   ├── game/               # 게임 로직 모듈
+│           │   ├── constants.ts        # 상수/설정값
+│           │   └── types.ts            # 타입 정의
+│           └── hooks/                  # 커스텀 훅
+├── [다른게임제목]/                       # 새 아이디어 → 새 폴더
+│   ├── docs/
+│   └── prototype/
+└── ...
 ```
 
 ### 재실행/수정
@@ -634,4 +645,4 @@ IdeaPrototype/
 - "성장 시스템 수정해줘" → 메타 디자이너부터 재실행
 - "디자인 스타일 바꿔줘" → 아트 디렉터부터 재실행
 - "코드 수정해줘" → 개발자 단계만 재실행
-- "새 아이디어" → 전체 파이프라인 재시작 (기존 결과물은 `archive/` 로 이동)
+- "새 아이디어" → 새 `[게임제목]/` 폴더를 만들어 전체 파이프라인 시작
